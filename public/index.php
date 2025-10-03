@@ -1,12 +1,80 @@
 <?php
 require_once __DIR__ . '/_bootstrap.php';
-$pdo = db();
-$stmt = $pdo->query("SELECT id, title, filename, tags, created_at FROM videos WHERE status='published' ORDER BY created_at DESC");
-$videos = $stmt->fetchAll();
 function h($s){return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');}
-?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StreamSite</title><link rel="stylesheet" href="vendor/clarity/css/clarity.css"><link rel="stylesheet" href="assets/css/site.css"></head>
-<body><header class="site-header"><div class="container"><h1>StreamSite</h1><nav><a href="./">Home</a><a href="login/">Login</a><a href="admin/">Admin</a></nav></div></header>
-<main class="container"><h2>Latest Videos</h2><div class="grid"><?php if(!$videos): ?><p>No videos published yet.</p><?php endif; ?>
-<?php foreach($videos as $v): ?><article class="card"><div class="card-body"><h3><a href="video.php?id=<?= (int)$v['id'] ?>"><?= h($v['title']) ?></a></h3><p>Tags: <?= h($v['tags'] ?: '—') ?></p><p><small>Published: <?= h($v['created_at']) ?></small></p></div></article><?php endforeach; ?></div></main>
-<footer class="site-footer"><div class="container"><p>&copy; <?= date('Y') ?> StreamSite</p></div></footer><script src="assets/js/tracker.js"></script></body></html>
+$pdo = db();
+
+$videos = [];
+$usedFallback = false;
+
+try {
+  // Preferred query (new schema)
+  $stmt = $pdo->query("SELECT id, title, filename, tags, created_at FROM videos WHERE status='published' ORDER BY created_at DESC");
+  $videos = $stmt->fetchAll();
+} catch (Throwable $e) {
+  // Fallback for legacy schemas (no status/tags/created_at)
+  try {
+    $stmt = $pdo->query("SELECT id, title, filename FROM videos ORDER BY id DESC");
+    $tmp = $stmt->fetchAll();
+    foreach ($tmp as $row) {
+      $row['tags'] = null;
+      $row['created_at'] = null;
+      $videos[] = $row;
+    }
+    $usedFallback = true;
+  } catch (Throwable $e2) {
+    http_response_code(500);
+    echo "<pre>Home error: " . h($e2->getMessage()) . "</pre>";
+    exit;
+  }
+}
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamSite</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+  <header class="py-3 bg-dark text-white">
+    <div class="container d-flex justify-content-between">
+      <h1 class="h4 m-0"><a href="./" class="link-light text-decoration-none">StreamSite</a></h1>
+      <nav class="d-flex gap-3">
+        <a class="link-light" href="login/">Login</a>
+        <a class="link-light" href="admin/">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container my-4">
+    <?php if ($usedFallback): ?>
+      <div class="alert alert-warning">
+        Running in compatibility mode (legacy <code>videos</code> schema). You can normalize it at <a href="tools/repair_schema.php" class="alert-link">tools/repair_schema.php</a>.
+      </div>
+    <?php endif; ?>
+
+    <h2 class="mb-3">Latest Videos</h2>
+    <?php if (!$videos): ?>
+      <p>No videos yet. Upload from Admin or place MP4s in <code>/public_html/video/</code> and add rows to the <code>videos</code> table.</p>
+    <?php endif; ?>
+
+    <div class="row g-3">
+      <?php foreach ($videos as $v): ?>
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h3 class="h5"><a href="video.php?id=<?= (int)$v['id'] ?>"><?= h($v['title']) ?></a></h3>
+              <?php if (!empty($v['tags'])): ?>
+                <p class="text-muted small mb-2"><?= h($v['tags']) ?></p>
+              <?php endif; ?>
+              <a class="btn btn-sm btn-outline-primary" href="video.php?id=<?= (int)$v['id'] ?>">Watch</a>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </main>
+</body>
+</html>
