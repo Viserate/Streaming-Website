@@ -4,27 +4,33 @@ function h($s){return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');}
 $pdo = db();
 
 $videos = [];
-$usedFallback = false;
+$compat = false;
 
 try {
   // Preferred query (new schema)
   $stmt = $pdo->query("SELECT id, title, filename, tags, created_at FROM videos WHERE status='published' ORDER BY created_at DESC");
   $videos = $stmt->fetchAll();
-} catch (Throwable $e) {
-  // Fallback for legacy schemas (no status/tags/created_at)
+} catch (Throwable $e1) {
+  // Next try: maybe no status/tags/created_at
   try {
     $stmt = $pdo->query("SELECT id, title, filename FROM videos ORDER BY id DESC");
-    $tmp = $stmt->fetchAll();
-    foreach ($tmp as $row) {
-      $row['tags'] = null;
-      $row['created_at'] = null;
-      $videos[] = $row;
-    }
-    $usedFallback = true;
+    $videos = $stmt->fetchAll();
+    $compat = true;
   } catch (Throwable $e2) {
-    http_response_code(500);
-    echo "<pre>Home error: " . h($e2->getMessage()) . "</pre>";
-    exit;
+    // Last try: only id + title exist
+    try {
+      $stmt = $pdo->query("SELECT id, title FROM videos ORDER BY id DESC");
+      $basic = $stmt->fetchAll();
+      foreach ($basic as $row) {
+        $row['filename'] = null;
+        $videos[] = $row;
+      }
+      $compat = true;
+    } catch (Throwable $e3) {
+      http_response_code(500);
+      echo "<pre>Home error: " . h($e3->getMessage()) . "</pre>";
+      exit;
+    }
   }
 }
 ?>
@@ -49,15 +55,16 @@ try {
   </header>
 
   <main class="container my-4">
-    <?php if ($usedFallback): ?>
+    <?php if ($compat): ?>
       <div class="alert alert-warning">
-        Running in compatibility mode (legacy <code>videos</code> schema). You can normalize it at <a href="tools/repair_schema.php" class="alert-link">tools/repair_schema.php</a>.
+        Compatibility mode is active (legacy <code>videos</code> schema). Run the one-time fixer at
+        <a class="alert-link" href="tools/repair_schema.php">tools/repair_schema.php</a>.
       </div>
     <?php endif; ?>
 
     <h2 class="mb-3">Latest Videos</h2>
     <?php if (!$videos): ?>
-      <p>No videos yet. Upload from Admin or place MP4s in <code>/public_html/video/</code> and add rows to the <code>videos</code> table.</p>
+      <p>No videos yet.</p>
     <?php endif; ?>
 
     <div class="row g-3">
@@ -65,10 +72,7 @@ try {
         <div class="col-md-4">
           <div class="card h-100 shadow-sm">
             <div class="card-body">
-              <h3 class="h5"><a href="video.php?id=<?= (int)$v['id'] ?>"><?= h($v['title']) ?></a></h3>
-              <?php if (!empty($v['tags'])): ?>
-                <p class="text-muted small mb-2"><?= h($v['tags']) ?></p>
-              <?php endif; ?>
+              <h3 class="h5"><a href="video.php?id=<?= (int)$v['id'] ?>"><?= h($v['title'] ?? ('Video #' . (int)$v['id'])) ?></a></h3>
               <a class="btn btn-sm btn-outline-primary" href="video.php?id=<?= (int)$v['id'] ?>">Watch</a>
             </div>
           </div>
