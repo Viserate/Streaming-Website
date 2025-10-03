@@ -1,4 +1,2 @@
 <?php
-require_once __DIR__ . '/../config/auth.php';
-session_destroy();
-header('Location:/');
+require_once __DIR__ . '/_bootstrap.php'; session_destroy(); header('Location: /');
