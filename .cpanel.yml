@@ -1,6 +1,3 @@
 deployment:
   tasks:
-    - export SRC="$(pwd)"
-    - export WEB="$HOME/public_html"
-    - /bin/mkdir -p "$WEB"
-    - /bin/echo "Deploy started at $(date)" > "$HOME/deploy.log"
+    - /bin/echo "Deploy started"
