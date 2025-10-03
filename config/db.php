@@ -1,11 +1,20 @@
 <?php
-// config/db.php
-// This loader prefers config/db.local.php (written by the installer).
-// If it doesn't exist, it falls back to env vars with safe defaults.
-$local = __DIR__ . '/db.local.php';
-if (file_exists($local)) {
-  return require $local;
+// config/db.php (SiteConfigs-aware)
+// Prefer external ~/SiteConfigs/db.local.php, then local config/db.local.php.
+$docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');           // e.g., /home/user/public_html
+$home    = dirname($docroot);                                     // e.g., /home/user
+$siteCfg = $home . '/SiteConfigs';
+$external = $siteCfg . '/db.local.php';
+$internal = __DIR__ . '/db.local.php';
+
+if (is_readable($external)) {
+  return require $external;
 }
+if (is_readable($internal)) {
+  return require $internal;
+}
+
+// Fallback to env/defaults
 return [
   'host' => getenv('DB_HOST') ?: 'localhost',
   'port' => getenv('DB_PORT') ?: '3306',

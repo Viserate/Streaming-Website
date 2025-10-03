@@ -1,29 +1,27 @@
----
 deployment:
   tasks:
-    # Adjust this if your docroot is different (e.g., a subdomain folder)
-    - export SITE_ROOT="$HOME/public_html"
-    - export REPO_ROOT="$(pwd)"
+    - export SRC="$(pwd)"
+    - export WEB="$HOME/public_html"
+    - export CFG="$HOME/SiteConfigs"
 
-    # Update Overall
-    # Ensure target folders exist
-    - /bin/mkdir -p "$SITE_ROOT" "$SITE_ROOT/vendor" "$SITE_ROOT/video" "$SITE_ROOT/admin/uploads" "$HOME/config"
+    # Create targets
+    - /bin/mkdir -p "$WEB" "$WEB/vendor" "$WEB/video" "$WEB/admin/uploads" "$CFG"
 
-    # Deploy public/ to webroot
-    - /usr/bin/rsync -a --delete --exclude=".git" --exclude=".cpanel.yml" "$REPO_ROOT/public/" "$SITE_ROOT/" || /bin/cp -a "$REPO_ROOT/public/." "$SITE_ROOT/"
+    # Deploy the public site to webroot
+    - /usr/bin/rsync -a --delete "$SRC/public/" "$WEB/" || /bin/cp -a "$SRC/public/." "$WEB/"
 
-    # Deploy vendor/ (needed for /vendor/clarity and AdminLTE assets)
-    - /usr/bin/rsync -a --delete "$REPO_ROOT/vendor/" "$SITE_ROOT/vendor/" || ( /bin/mkdir -p "$SITE_ROOT/vendor" && /bin/cp -a "$REPO_ROOT/vendor/." "$SITE_ROOT/vendor/" )
+    # Assets that must be publicly accessible (AdminLTE/Clarity/Login)
+    - /usr/bin/rsync -a --delete "$SRC/vendor/" "$WEB/vendor/" || true
 
-    # Place config outside webroot so PHP includes ../config/*
-    - /usr/bin/rsync -a "$REPO_ROOT/config/" "$HOME/config/" || /bin/cp -a "$REPO_ROOT/config/." "$HOME/config/"
+    # Non-public config outside webroot
+    - /usr/bin/rsync -a "$SRC/config/" "$CFG/" || /bin/cp -a "$SRC/config/." "$CFG/"
 
-    # Place install.sql where the installer expects it (~/install.sql)
-    - /bin/cp -f "$REPO_ROOT/install.sql" "$HOME/install.sql"
+    # Keep install.sql outside webroot (preferred path for the installer)
+    - /bin/cp -af "$SRC/install.sql" "$CFG/install.sql"
 
-    # Permissions (safe defaults for suPHP)
-    - /bin/find "$SITE_ROOT" -type d -exec /bin/chmod 755 {} \;
-    - /bin/find "$SITE_ROOT" -type f -exec /bin/chmod 644 {} \;
-    - /bin/chmod 755 "$SITE_ROOT/video" "$SITE_ROOT/admin/uploads" || true
-    - /bin/chmod 700 "$HOME/config" || true
-    - /bin/chmod 600 "$HOME/config/db.local.php" || true
+    # Permissions
+    - /bin/find "$WEB" -type d -exec /bin/chmod 755 {} \;
+    - /bin/find "$WEB" -type f -exec /bin/chmod 644 {} \;
+    - /bin/chmod 775 "$WEB/video" "$WEB/admin/uploads" || true
+    - /bin/chmod 700 "$CFG" || true
+    - /bin/chmod 600 "$CFG/db.local.php" || true

@@ -1,10 +1,21 @@
 <?php
-// public/install/run.php
-$lock = __DIR__ . '/../../config/installed.lock';
-if (file_exists($lock)) {
-  http_response_code(403);
-  echo "Installer is locked."; exit;
+// public/install/run.php (SiteConfigs-aware)
+// Writes db.local.php and installed.lock to ~/SiteConfigs (outside webroot).
+
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
+$docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+$home    = dirname($docroot);
+$siteCfg = $home . '/SiteConfigs';
+
+// Ensure SiteConfigs exists, else try to create it
+if (!is_dir($siteCfg)) {
+  @mkdir($siteCfg, 0700, true);
 }
+
+$lock = $siteCfg . '/installed.lock';
+if (file_exists($lock)) { http_response_code(403); echo "Installer is locked."; exit; }
 
 function e($s){ return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
@@ -16,22 +27,17 @@ $p = (string)($_POST['db_pass'] ?? '');
 $adminUser = trim($_POST['admin_user'] ?? '');
 $adminPass = (string)($_POST['admin_pass'] ?? '');
 
-if (!$h || !$pt || !$n || !$u || !$adminUser || !$adminPass) {
-  die("Missing required fields.");
-}
+if (!$h || !$pt || !$n || !$u || !$adminUser || !$adminPass) { die("Missing required fields."); }
 
-// 1) write db.local.php
-$dbLocal = __DIR__ . '/../../config/db.local.php';
-$cfg = [
-  'host' => $h, 'port' => $pt, 'name' => $n, 'user' => $u, 'pass' => $p, 'charset' => 'utf8mb4'
-];
+// Write db.local.php to SiteConfigs
+$dbLocal = $siteCfg . '/db.local.php';
+$cfg = ['host'=>$h, 'port'=>$pt, 'name'=>$n, 'user'=>$u, 'pass'=>$p, 'charset'=>'utf8mb4'];
 $php = "<?php\nreturn " . var_export($cfg, true) . ";\n";
 if (false === file_put_contents($dbLocal, $php)) {
-  die("Failed to write config/db.local.php (check file permissions).");
+  die("Failed to write " . e($dbLocal) . " (check file permissions).");
 }
 
-// 2) Connect and run install.sql
-require_once __DIR__ . '/../../config/pdo.php';
+// Connect & create DB (if privilege exists). Otherwise, user should pre-create DB in cPanel.
 try {
   $pdo = new PDO("mysql:host={$h};port={$pt};charset=utf8mb4", $u, $p, [
     PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
@@ -40,40 +46,39 @@ try {
   ]);
   $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$n}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
   $pdo->exec("USE `{$n}`;");
-} catch (PDOException $ex) {
+} catch (Throwable $ex) {
+  http_response_code(500);
   die("DB connection failed: " . e($ex->getMessage()));
 }
 
-// load and execute SQL file from project root (one directory up from public/)
-$sqlPath = realpath(__DIR__ . '/../../install.sql');
-if (!$sqlPath || !is_readable($sqlPath)) {
-  die("install.sql not found or not readable at: " . e($sqlPath ?: 'unknown'));
-}
-$sql = file_get_contents($sqlPath);
-$stmts = array_filter(array_map('trim', preg_split('/;\s*\n/', $sql)));
-try {
-  foreach ($stmts as $s) {
-    if ($s !== '') $pdo->exec($s);
-  }
-} catch (PDOException $ex) {
-  die("SQL error: " . e($ex->getMessage()));
-}
+// Find install.sql (prefer in SiteConfigs)
+$paths = [
+  realpath($siteCfg . '/install.sql'),          // ~/SiteConfigs/install.sql (preferred)
+  realpath($home . '/install.sql'),             // ~/install.sql (fallback)
+  realpath($docroot . '/install.sql'),          // /public_html/install.sql (fallback)
+  realpath(__DIR__ . '/../../install.sql'),     // repo root (fallback)
+];
+$sqlPath = null;
+foreach ($paths as $pth) { if ($pth && is_readable($pth)) { $sqlPath = $pth; break; } }
+if (!$sqlPath) { http_response_code(500); die("install.sql not found in expected locations."); }
 
-// 3) Ensure admin exists with provided credentials (override any placeholder)
+$sql = @file_get_contents($sqlPath);
+if ($sql === false) { http_response_code(500); die("install.sql cannot be read."); }
+
+$stmts = array_filter(array_map('trim', preg_split('/;\s*\n/', $sql)));
+try { foreach ($stmts as $s) { if ($s !== '') $pdo->exec($s); } }
+catch (Throwable $ex) { http_response_code(500); die("SQL error: " . e($ex->getMessage())); }
+
+// Ensure admin account
 try {
   $hash = password_hash($adminPass, PASSWORD_DEFAULT);
   $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')
     ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash), role='admin'");
   $stmt->execute([$adminUser, $hash]);
-} catch (PDOException $ex) {
-  die("Failed to create admin: " . e($ex->getMessage()));
-}
+} catch (Throwable $ex) { http_response_code(500); die("Failed to create admin: " . e($ex->getMessage())); }
 
-// 4) Write lock
-if (false === file_put_contents($lock, date('c'))) {
-  die("Failed to write installer lock file (config/installed.lock).");
-}
-
+// Write lock & finish
+@file_put_contents($lock, date('c'));
 ?>
 <!doctype html>
 <html lang="en">
@@ -83,11 +88,11 @@ if (false === file_put_contents($lock, date('c'))) {
 </head>
 <body>
   <h1>✅ Installation Complete</h1>
-  <p>Your database was created and initialized. Admin user <code><?= e($adminUser) ?></code> is ready.</p>
+  <p>Admin user <code><?= e($adminUser) ?></code> is ready.</p>
   <ol>
     <li><a href="/login/">Go to Login</a></li>
     <li><a href="/admin/">Open Admin</a></li>
   </ol>
-  <p><strong>Security:</strong> Delete the <code>/public/install/</code> folder now. The installer is locked via <code>config/installed.lock</code>.</p>
+  <p><strong>Security:</strong> Delete the <code>/public/install/</code> folder. Lock file is at <code><?= e($lock) ?></code>.</p>
 </body>
 </html>
