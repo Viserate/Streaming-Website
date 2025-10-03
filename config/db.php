@@ -1,20 +1,12 @@
 <?php
 // config/db.php (SiteConfigs-aware)
-// Prefer external ~/SiteConfigs/db.local.php, then local config/db.local.php.
-$docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');           // e.g., /home/user/public_html
-$home    = dirname($docroot);                                     // e.g., /home/user
+$docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/'); // /home/user/public_html
+$home    = dirname($docroot);                           // /home/user
 $siteCfg = $home . '/SiteConfigs';
 $external = $siteCfg . '/db.local.php';
 $internal = __DIR__ . '/db.local.php';
-
-if (is_readable($external)) {
-  return require $external;
-}
-if (is_readable($internal)) {
-  return require $internal;
-}
-
-// Fallback to env/defaults
+if (is_readable($external)) return require $external;
+if (is_readable($internal)) return require $internal;
 return [
   'host' => getenv('DB_HOST') ?: 'localhost',
   'port' => getenv('DB_PORT') ?: '3306',
