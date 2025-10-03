@@ -5,6 +5,7 @@ deployment:
     - export SITE_ROOT="$HOME/public_html"
     - export REPO_ROOT="$(pwd)"
 
+    # Update Overall
     # Ensure target folders exist
     - /bin/mkdir -p "$SITE_ROOT" "$SITE_ROOT/vendor" "$SITE_ROOT/video" "$SITE_ROOT/admin/uploads" "$HOME/config"
 
