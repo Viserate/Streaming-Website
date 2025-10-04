@@ -17,6 +17,8 @@ $u = current_user();
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Videos</a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="/admin/videos/">All Videos</a></li>
+            <li><a class="dropdown-item" href="/admin/videos/upload.php">Upload</a></li>
+            <li><a class="dropdown-item" href="/admin/videos/add_external.php">External / Embed</a></li>
             <li><a class="dropdown-item" href="/admin/videos/categories.php">Categories</a></li>
             <li><a class="dropdown-item" href="/admin/videos/playlists.php">Playlists</a></li>
             <li><a class="dropdown-item" href="/admin/videos/scan.php">Scan Library</a></li>
@@ -50,6 +52,4 @@ $u = current_user();
     </div>
   </div>
 </nav>
-
-<!-- Ensure Bootstrap JS is available for dropdowns/collapse on every admin page -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
