@@ -11,9 +11,32 @@ $errors   = [];
 $videoDir = dirname(__DIR__, 2) . '/video';
 if (!is_dir($videoDir)) { @mkdir($videoDir, 0755, true); }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  if (!csrf_check($_POST['csrf'] ?? '', true)) {
-    $errors[] = 'Security token expired.';
+// Helpers
+function to_bytes($val){
+  $val = trim($val);
+  $last = strtolower(substr($val, -1));
+  $num = (int)$val;
+  switch($last){
+    case 'g': $num *= 1024;
+    case 'm': $num *= 1024;
+    case 'k': $num *= 1024;
+  }
+  return $num;
+}
+
+$phpMaxUpload = ini_get('upload_max_filesize');
+$phpMaxPost   = ini_get('post_max_size');
+$maxPostBytes = to_bytes($phpMaxPost);
+
+// Detect post_max_size overflow (when PHP discards POST/FILES entirely)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxPostBytes)) {
+  $errors[] = 'The upload exceeded post_max_size (' . h($phpMaxPost) . '). Increase PHP limits or upload a smaller file.';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$errors) {
+  // Use non-rotating CSRF check to avoid "expired" on multi-tabs or after browsing around
+  if (!csrf_check($_POST['csrf'] ?? '', false)) {
+    $errors[] = 'Security token expired. Please reload the page and try again.';
   } else {
     $title = trim($_POST['title'] ?? '');
 
@@ -48,9 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 }
-
-$phpMaxUpload = ini_get('upload_max_filesize');
-$phpMaxPost   = ini_get('post_max_size');
 ?>
 <!doctype html>
 <html lang="en">
@@ -81,6 +101,9 @@ $phpMaxPost   = ini_get('post_max_size');
           <input class="form-control" type="file" name="file" accept="video/mp4" required>
           <div class="form-text text-muted">
             Server limits — upload_max_filesize: <?= h($phpMaxUpload) ?> · post_max_size: <?= h($phpMaxPost) ?>
+            <?php if (to_bytes($phpMaxUpload) < 134217728 || to_bytes($phpMaxPost) < 134217728): ?>
+              <br><strong>Tip:</strong> For video, consider raising these to at least 128M in cPanel &rarr; PHP settings.
+            <?php endif; ?>
           </div>
         </div>
         <div><button class="btn btn-primary">Upload</button> <a class="btn btn-outline-secondary" href="index.php">Cancel</a></div>
