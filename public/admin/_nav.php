@@ -1,7 +1,52 @@
 <?php
-require_once __DIR__ . '/../_bootstrap.php';
-if (!function_exists('h')) { function h($s){ return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); } }
-$u = current_user();
+$displayUser = '';
+if (function_exists('current_user')) {
+  $u = current_user();
+  $displayUser = isset($u['username']) ? $u['username'] : 'Admin';
+}
+
+$doc = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+$cfgDir = $doc ? dirname($doc) . '/SiteConfigs' : __DIR__ . '/../../SiteConfigs';
+$cfgFile = $cfgDir . '/admin_nav.json';
+
+$defaults = [
+  ["label"=>"Dashboard","href"=>"/admin/"],
+  ["label"=>"Pages","href"=>"/admin/pages/"],
+  ["label"=>"Videos","href"=>"#","children"=>[
+    ["label"=>"All Videos","href"=>"/admin/videos/"],
+    ["label"=>"Upload","href"=>"/admin/videos/upload.php"],
+    ["label"=>"Upload (Large)","href"=>"/admin/videos/upload_large.php"],
+    ["label"=>"External / Embed","href"=>"/admin/videos/add_external.php"],
+    ["label"=>"Categories","href"=>"/admin/videos/categories.php"],
+    ["label"=>"Playlists","href"=>"/admin/videos/playlists.php"],
+    ["label"=>"Scan Library","href"=>"/admin/videos/scan.php"]
+  ]],
+  ["label"=>"Media","href"=>"/admin/media/"],
+  ["label"=>"Users","href"=>"/admin/users/"],
+  ["label"=>"Analytics","href"=>"/admin/analytics.php"],
+  ["label"=>"Settings","href"=>"#","children"=>[
+    ["label"=>"General","href"=>"/admin/settings/general.php"],
+    ["label"=>"Branding","href"=>"/admin/settings/branding.php"],
+    ["label"=>"Navigation","href"=>"/admin/settings/navigation.php"]
+  ]],
+  ["label"=>"Tools","href"=>"#","children"=>[
+    ["label"=>"Export JSON","href"=>"/admin/tools/export.php"],
+    ["label"=>"Import JSON","href"=>"/admin/tools/import.php"],
+    ["label"=>"System Info","href"=>"/admin/tools/system.php"],
+    ["label"=>"PHP Info","href"=>"/tools/phpinfo.php"],
+    ["label"=>"DB Migrate","href"=>"/admin/tools/db_migrate.php"]
+  ]]
+];
+
+$menu = $defaults;
+if (is_file($cfgFile)) {
+  $json = @file_get_contents($cfgFile);
+  $data = json_decode($json, true);
+  if (is_array($data) && $data) $menu = $data;
+}
+
+$uri = strtok($_SERVER['REQUEST_URI'] ?? '', '?');
+$starts = function($href) use ($uri) { if(!$href || $href==='#') return false; return strpos($uri, rtrim($href,'/')) === 0; };
 ?>
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
   <div class="container-fluid">
@@ -11,44 +56,38 @@ $u = current_user();
     </button>
     <div class="collapse navbar-collapse" id="adminNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="/admin/">Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/pages/">Pages</a></li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Videos</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="/admin/videos/">All Videos</a></li>
-            <li><a class="dropdown-item" href="/admin/videos/upload.php">Upload</a></li>
-            <li><a class="dropdown-item" href="/admin/videos/upload_large.php">Upload (Large)</a></li>
-            <li><a class="dropdown-item" href="/admin/videos/add_external.php">External / Embed</a></li>
-            <li><a class="dropdown-item" href="/admin/videos/categories.php">Categories</a></li>
-            <li><a class="dropdown-item" href="/admin/videos/playlists.php">Playlists</a></li>
-            <li><a class="dropdown-item" href="/admin/videos/scan.php">Scan Library</a></li>
-          </ul>
-        </li>
-        <li class="nav-item"><a class="nav-link" href="/admin/media/">Media</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/users/">Users</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/analytics.php">Analytics</a></li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Settings</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="/admin/settings/general.php">General</a></li>
-            <li><a class="dropdown-item" href="/admin/settings/branding.php">Branding</a></li>
-            <li><a class="dropdown-item" href="/admin/settings/navigation.php">Navigation</a></li>
-          </ul>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Tools</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="/admin/tools/export.php">Export JSON</a></li>
-            <li><a class="dropdown-item" href="/admin/tools/import.php">Import JSON</a></li>
-            <li><a class="dropdown-item" href="/admin/tools/system.php">System Info</a></li>
-            <li><a class="dropdown-item" href="/tools/phpinfo.php">PHP Info</a></li>
-          </ul>
-        </li>
+        <?php foreach ($menu as $m): ?>
+          <?php
+            $label = htmlspecialchars($m['label'] ?? '', ENT_QUOTES, 'UTF-8');
+            $href  = $m['href']  ?? '#';
+            $children = $m['children'] ?? null;
+            $isActive = $children
+              ? array_reduce($children, fn($a,$c)=>$a||$starts($c['href']??''), false)
+              : $starts($href);
+          ?>
+          <?php if ($children && is_array($children)): ?>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle <?= $isActive?'active':'' ?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <?= $label ?>
+              </a>
+              <ul class="dropdown-menu">
+                <?php foreach ($children as $c): ?>
+                  <?php $clab = htmlspecialchars($c['label'] ?? '', ENT_QUOTES, 'UTF-8'); $chref = $c['href'] ?? '#'; ?>
+                  <li><a class="dropdown-item" href="<?= htmlspecialchars($chref, ENT_QUOTES, 'UTF-8') ?>"><?= $clab ?></a></li>
+                <?php endforeach; ?>
+              </ul>
+            </li>
+          <?php else: ?>
+            <li class="nav-item">
+              <a class="nav-link <?= $isActive?'active':'' ?>" href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"><?= $label ?></a>
+            </li>
+          <?php endif; ?>
+        <?php endforeach; ?>
       </ul>
+
       <ul class="navbar-nav ms-auto align-items-center">
         <li class="nav-item me-2"><a class="btn btn-outline-secondary btn-sm" href="/">View Site</a></li>
-        <li class="nav-item me-2"><span class="nav-link"><?= h($u['username'] ?? 'Admin') ?></span></li>
+        <li class="nav-item me-2"><span class="nav-link"><?= htmlspecialchars($displayUser ?: 'Admin', ENT_QUOTES, 'UTF-8') ?></span></li>
         <li class="nav-item"><a class="btn btn-outline-secondary btn-sm" href="/logout.php">Logout</a></li>
       </ul>
     </div>
