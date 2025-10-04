@@ -18,6 +18,7 @@ $u = current_user();
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="/admin/videos/">All Videos</a></li>
             <li><a class="dropdown-item" href="/admin/videos/upload.php">Upload</a></li>
+            <li><a class="dropdown-item" href="/admin/videos/upload_large.php">Upload (Large)</a></li>
             <li><a class="dropdown-item" href="/admin/videos/add_external.php">External / Embed</a></li>
             <li><a class="dropdown-item" href="/admin/videos/categories.php">Categories</a></li>
             <li><a class="dropdown-item" href="/admin/videos/playlists.php">Playlists</a></li>
@@ -41,6 +42,7 @@ $u = current_user();
             <li><a class="dropdown-item" href="/admin/tools/export.php">Export JSON</a></li>
             <li><a class="dropdown-item" href="/admin/tools/import.php">Import JSON</a></li>
             <li><a class="dropdown-item" href="/admin/tools/system.php">System Info</a></li>
+            <li><a class="dropdown-item" href="/tools/phpinfo.php">PHP Info</a></li>
           </ul>
         </li>
       </ul>
