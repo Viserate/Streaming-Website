@@ -1,49 +1,13 @@
 <?php
+require_once __DIR__ . '/../../_bootstrap.php';
+$pdo = db();
+require_once __DIR__ . '/_nav_db.php';
+admin_nav_ensure($pdo);
+admin_nav_seed_defaults($pdo);
+$menu = admin_nav_fetch($pdo);
+
 $displayUser = '';
-if (function_exists('current_user')) {
-  $u = current_user();
-  $displayUser = isset($u['username']) ? $u['username'] : 'Admin';
-}
-
-$doc = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
-$cfgDir = $doc ? dirname($doc) . '/SiteConfigs' : __DIR__ . '/../../SiteConfigs';
-$cfgFile = $cfgDir . '/admin_nav.json';
-
-$defaults = [
-  ["label"=>"Dashboard","href"=>"/admin/"],
-  ["label"=>"Pages","href"=>"/admin/pages/"],
-  ["label"=>"Videos","href"=>"#","children"=>[
-    ["label"=>"All Videos","href"=>"/admin/videos/"],
-    ["label"=>"Upload","href"=>"/admin/videos/upload.php"],
-    ["label"=>"Upload (Large)","href"=>"/admin/videos/upload_large.php"],
-    ["label"=>"External / Embed","href"=>"/admin/videos/add_external.php"],
-    ["label"=>"Categories","href"=>"/admin/videos/categories.php"],
-    ["label"=>"Playlists","href"=>"/admin/videos/playlists.php"],
-    ["label"=>"Scan Library","href"=>"/admin/videos/scan.php"]
-  ]],
-  ["label"=>"Media","href"=>"/admin/media/"],
-  ["label"=>"Users","href"=>"/admin/users/"],
-  ["label"=>"Analytics","href"=>"/admin/analytics.php"],
-  ["label"=>"Settings","href"=>"#","children"=>[
-    ["label"=>"General","href"=>"/admin/settings/general.php"],
-    ["label"=>"Branding","href"=>"/admin/settings/branding.php"],
-    ["label"=>"Navigation","href"=>"/admin/settings/navigation.php"]
-  ]],
-  ["label"=>"Tools","href"=>"#","children"=>[
-    ["label"=>"Export JSON","href"=>"/admin/tools/export.php"],
-    ["label"=>"Import JSON","href"=>"/admin/tools/import.php"],
-    ["label"=>"System Info","href"=>"/admin/tools/system.php"],
-    ["label"=>"PHP Info","href"=>"/tools/phpinfo.php"],
-    ["label"=>"DB Migrate","href"=>"/admin/tools/db_migrate.php"]
-  ]]
-];
-
-$menu = $defaults;
-if (is_file($cfgFile)) {
-  $json = @file_get_contents($cfgFile);
-  $data = json_decode($json, true);
-  if (is_array($data) && $data) $menu = $data;
-}
+if (function_exists('current_user')) { $u = current_user(); $displayUser = $u['username'] ?? 'Admin'; }
 
 $uri = strtok($_SERVER['REQUEST_URI'] ?? '', '?');
 $starts = function($href) use ($uri) { if(!$href || $href==='#') return false; return strpos($uri, rtrim($href,'/')) === 0; };
