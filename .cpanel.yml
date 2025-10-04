@@ -1,4 +1,3 @@
----
 deployment:
   tasks:
     - /bin/bash <<'DEPLOY'
@@ -26,14 +25,14 @@ deployment:
             log "Removing broken symlink: $path"
             rm -f "$path"
             mkdir -p "$path"
-          fi>
+          fi
         fi
       }
       migrate_symlink "$DST/media"
       migrate_symlink "$DST/video"
       migrate_symlink "$DST/uploads"
 
-      # Make sure these directories exist (regular directories, not symlinks)
+      # Ensure real directories exist (not symlinks)
       mkdir -p "$DST/media" "$DST/video" "$DST/uploads"
 
       # ---- Sync application code from repo/public to docroot, preserving uploads ----
@@ -44,7 +43,7 @@ deployment:
         --human-readable --info=stats2,progress2 \
         "$SRC/public/" "$DST/"
 
-      # ---- Permissions (skip large upload dirs) ----
+      # ---- Permissions (skip upload dirs) ----
       log "Fixing permissions"
       find "$DST" -type f -name '*.php' ! -path "$DST/media/*" ! -path "$DST/video/*" ! -path "$DST/uploads/*" -print0 | xargs -0 -r chmod 0644
       find "$DST" -type d ! -path "$DST/media*" ! -path "$DST/video*" ! -path "$DST/uploads*" -print0 | xargs -0 -r chmod 0755
