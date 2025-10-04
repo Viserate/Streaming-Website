@@ -1,0 +1,2 @@
+Add this line at the end of public/admin/_nav.php (after the bootstrap bundle):
+<script src="/admin/assets/admin-tools.js"></script>
