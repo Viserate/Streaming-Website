@@ -1,7 +1,12 @@
 <?php
 require_once __DIR__ . '/../_bootstrap.php';
+
+// Guard helper to avoid "Cannot redeclare h()" when index.php or other includes define it.
+if (!function_exists('h')) {
+  function h($s){ return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
+}
+
 $u = current_user();
-function h($s){return htmlspecialchars($s,ENT_QUOTES,'UTF-8');}
 ?>
 <nav class="navbar navbar-expand navbar-light bg-white shadow-sm sticky-top">
   <div class="container-fluid">
