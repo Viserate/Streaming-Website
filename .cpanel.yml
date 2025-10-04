@@ -1,24 +1,27 @@
 ---
 deployment:
   tasks:
-    # Paths provided by cPanel:
-    #   $DEPLOYMENT_SOURCE -> repo checkout
-    #   $DEPLOYMENT_TARGET -> docroot (e.g., /home/$USER/public_html)
-    - export SRC="$DEPLOYMENT_SOURCE"
-    - export DST="$DEPLOYMENT_TARGET"
-    - echo "Deploy from $SRC to $DST"
+    - /bin/bash <<'DEPLOY'
+      set -euo pipefail
+      log(){ printf '[deploy] %s\n' "$*"; }
+      log "Starting deploy: $(date -Is)"
+      SRC="${DEPLOYMENT_SOURCE}"
+      DST="${DEPLOYMENT_TARGET}"
+      HOME="/home/${USER}"
 
-    # Ensure persistent storage exists outside repo and is linked
-    - export HOME="/home/$USER"
-    - mkdir -p "$HOME/SiteStorage/media" "$HOME/SiteStorage/video"
-    - if [ ! -e "$DST/media" ]; then ln -s "$HOME/SiteStorage/media" "$DST/media"; fi
-    - if [ ! -e "$DST/video" ]; then ln -s "$HOME/SiteStorage/video" "$DST/video"; fi
+      # Persistent storage for uploads
+      mkdir -p "$HOME/SiteStorage/media" "$HOME/SiteStorage/video"
+      [ -L "$DST/media" ] || ln -s "$HOME/SiteStorage/media" "$DST/media"
+      [ -L "$DST/video" ] || ln -s "$HOME/SiteStorage/video" "$DST/video"
 
-    # Sync code but NEVER delete real uploads
-    - rsync -a "$SRC/public/" "$DST/" \
-        --exclude="media/***" --exclude="video/***" --exclude="uploads/***" \
-        --delete-excluded --delete-after
+      log "Rsync code -> ${DST}"
+      # Use a timeout so the job can never hang indefinitely.
+      timeout 900 rsync -a --delete-after         --exclude='media/' --exclude='video/' --exclude='uploads/'         --human-readable --info=stats2,progress2         "$SRC/public/" "$DST/"
 
-    # Permissions (best-effort)
-    - find "$DST" -type f -name "*.php" -exec chmod 0644 {} \;
-    - find "$DST" -type d -exec chmod 0755 {} \;
+      log "Fix permissions (no descent into symlinked storage)"
+      find "$DST" -xdev -type f -name '*.php' -print0 | xargs -0 -r chmod 0644
+      find "$DST" -xdev -type d -print0 | xargs -0 -r chmod 0755
+
+      log "Done: $(date -Is)"
+      exit 0
+      DEPLOY
