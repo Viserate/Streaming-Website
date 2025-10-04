@@ -1,27 +1,24 @@
+---
 deployment:
   tasks:
-    - export SRC="$(pwd)"
-    - export WEB="$HOME/public_html"
-    - export CFG="$HOME/SiteConfigs"
+    # Paths provided by cPanel:
+    #   $DEPLOYMENT_SOURCE -> repo checkout
+    #   $DEPLOYMENT_TARGET -> docroot (e.g., /home/$USER/public_html)
+    - export SRC="$DEPLOYMENT_SOURCE"
+    - export DST="$DEPLOYMENT_TARGET"
+    - echo "Deploy from $SRC to $DST"
 
-    # Create targets
-    - /bin/mkdir -p "$WEB" "$WEB/vendor" "$WEB/video" "$WEB/admin/uploads" "$CFG"
+    # Ensure persistent storage exists outside repo and is linked
+    - export HOME="/home/$USER"
+    - mkdir -p "$HOME/SiteStorage/media" "$HOME/SiteStorage/video"
+    - if [ ! -e "$DST/media" ]; then ln -s "$HOME/SiteStorage/media" "$DST/media"; fi
+    - if [ ! -e "$DST/video" ]; then ln -s "$HOME/SiteStorage/video" "$DST/video"; fi
 
-    # Deploy the public site to webroot
-    - /usr/bin/rsync -a --delete "$SRC/public/" "$WEB/" || /bin/cp -a "$SRC/public/." "$WEB/"
+    # Sync code but NEVER delete real uploads
+    - rsync -a "$SRC/public/" "$DST/" \
+        --exclude="media/***" --exclude="video/***" --exclude="uploads/***" \
+        --delete-excluded --delete-after
 
-    # Assets that must be publicly accessible (AdminLTE/Clarity/Login)
-    - /usr/bin/rsync -a --delete "$SRC/vendor/" "$WEB/vendor/" || true
-
-    # Non-public config outside webroot
-    - /usr/bin/rsync -a "$SRC/config/" "$CFG/" || /bin/cp -a "$SRC/config/." "$CFG/"
-
-    # Keep install.sql outside webroot (preferred path for the installer)
-    - /bin/cp -af "$SRC/install.sql" "$CFG/install.sql"
-
-    # Permissions
-    - /bin/find "$WEB" -type d -exec /bin/chmod 755 {} \;
-    - /bin/find "$WEB" -type f -exec /bin/chmod 644 {} \;
-    - /bin/chmod 775 "$WEB/video" "$WEB/admin/uploads" || true
-    - /bin/chmod 700 "$CFG" || true
-    - /bin/chmod 600 "$CFG/db.local.php" || true
+    # Permissions (best-effort)
+    - find "$DST" -type f -name "*.php" -exec chmod 0644 {} \;
+    - find "$DST" -type d -exec chmod 0755 {} \;
