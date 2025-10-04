@@ -29,7 +29,7 @@ $url = $web . '/' . $name;
     <div class="col-md-6">
       <img src="<?= h($url) ?>" class="img-fluid rounded shadow-sm mb-3">
       <div class="input-group">
-        <span class="input-group-text">URL</span>
+        <span class="input-group-text">URL@@@@</span>
         <input class="form-control" value="<?= h($url) ?>" readonly onclick="this.select()">
       </div>
     </div>
