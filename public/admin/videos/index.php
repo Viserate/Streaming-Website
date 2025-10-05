@@ -1,63 +1,74 @@
 <?php
-require_once __DIR__ . '/../../_bootstrap.php';
-require_admin();
-$pdo = db();
-if (!function_exists('h')) { function h($s){ return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); } }
-require_once __DIR__ . '/_ensure_tables.php';
-videos_ensure_schema($pdo);
+require_once __DIR__ . '/../_admin_boot.php';
+admin_header('Videos');
 
-$err=''; $rows=[];
-try {
-  $rows = $pdo->query("SELECT id,title,filename,status,visibility,created_at FROM videos ORDER BY COALESCE(created_at,'1970-01-01') DESC LIMIT 500")->fetchAll(PDO::FETCH_ASSOC);
-} catch (Throwable $e) {
-  // Fallback on minimal columns
-  try {
-    $rows = $pdo->query("SELECT id,title,filename FROM videos ORDER BY id DESC LIMIT 500")->fetchAll(PDO::FETCH_ASSOC);
-  } catch (Throwable $e2) {
-    $err = $e2->getMessage();
-  }
+$pdo = db();
+$pdo->exec("CREATE TABLE IF NOT EXISTS videos(
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  path VARCHAR(255) NOT NULL,
+  duration INT NULL,
+  size BIGINT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);");
+$pdo->exec("CREATE TABLE IF NOT EXISTS video_categories(
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) UNIQUE NOT NULL
+);");
+$pdo->exec("CREATE TABLE IF NOT EXISTS video_cat_map(
+  video_id INT NOT NULL,
+  category_id INT NOT NULL,
+  PRIMARY KEY(video_id, category_id)
+);");
+$pdo->exec("CREATE TABLE IF NOT EXISTS playlists(
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) UNIQUE NOT NULL,
+  description TEXT NULL
+);");
+$pdo->exec("CREATE TABLE IF NOT EXISTS playlist_items(
+  playlist_id INT NOT NULL,
+  video_id INT NOT NULL,
+  position INT NOT NULL DEFAULT 0,
+  PRIMARY KEY(playlist_id, video_id)
+);");
+
+if (isset($_GET['del'])) {
+  $id = (int)$_GET['del'];
+  $st = $pdo->prepare("DELETE FROM videos WHERE id=?");
+  $st->execute([$id]);
+  echo "<div class='alert alert-success'>Deleted.</div>";
 }
+
 ?>
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Videos</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-<style>body{background:#f6f7fb}</style>
-</head>
-<body>
-<?php include __DIR__ . '/../_nav.php'; ?>
-<main class="container my-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">Videos</h1>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary" href="/admin/videos/upload.php">Upload</a>
-      <a class="btn btn-primary" href="/admin/videos/upload_large.php">Upload (Large)</a>
-    </div>
+<div class="d-flex justify-content-between mb-3">
+  <h3>Videos</h3>
+  <div>
+    <a class="btn btn-outline-primary me-2" href="/admin/videos/upload.php">Upload</a>
+    <a class="btn btn-outline-secondary me-2" href="/admin/videos/categories.php">Categories</a>
+    <a class="btn btn-outline-secondary me-2" href="/admin/videos/playlists.php">Playlists</a>
+    <a class="btn btn-outline-secondary" href="/admin/videos/scan.php">Scan Library</a>
   </div>
-  <?php if($err): ?><div class="alert alert-danger">DB error: <?= h($err) ?></div><?php endif; ?>
-  <div class="table-responsive bg-white rounded shadow-sm">
-    <table class="table align-middle m-0">
-      <thead class="table-light"><tr><th>ID</th><th>Title</th><th>Filename</th><th>Status</th><th>Visibility</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
-      <tbody>
-        <?php foreach($rows as $r): ?>
-        <tr>
-          <td><?= (int)$r['id'] ?></td>
-          <td><?= h($r['title'] ?? '') ?></td>
-          <td><code><?= h($r['filename'] ?? '') ?></code></td>
-          <td><?= h($r['status'] ?? '') ?></td>
-          <td><?= h($r['visibility'] ?? '') ?></td>
-          <td><?= h($r['created_at'] ?? '') ?></td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="/admin/videos/player.php?id=<?= (int)$r['id'] ?>">Preview</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/admin/videos/edit.php?id=<?= (int)$r['id'] ?>">Edit</a>
-          </td>
-        </tr>
-        <?php endforeach; if(!$rows): ?>
-          <tr><td colspan="7" class="text-center py-4 text-muted">No videos yet.</td></tr>
-        <?php endif; ?>
-      </tbody>
-    </table>
-  </div>
-</main>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body></html>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-striped">
+    <thead><tr><th>ID</th><th>Title</th><th>Path</th><th>Size</th><th></th></tr></thead>
+    <tbody>
+      <?php foreach($pdo->query('SELECT id,title,path,size FROM videos ORDER BY id DESC') as $v): ?>
+      <tr>
+        <td><?=h($v['id'])?></td>
+        <td><?=h($v['title'])?></td>
+        <td>
+          <input class="form-control form-control-sm" readonly value="<?=h($v['path'])?>">
+        </td>
+        <td><?=h(number_format($v['size'] ?? 0))?></td>
+        <td>
+          <a class="btn btn-sm btn-outline-danger" href="?del=<?=h($v['id'])?>" onclick="return confirm('Delete video?')">Delete</a>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+
+<?php admin_footer(); ?>

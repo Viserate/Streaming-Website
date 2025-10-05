@@ -15,13 +15,10 @@
   function normalizePath(v){
     if(!v) return null;
     v = String(v).replace(/\\/g,'/');
-    // strip scheme+host
-    v = v.replace(/^https?:\/\/[^/]+/i,'');
-    // if it contains /admin/uploads or /uploads, keep from there
+    v = v.replace(/^https?:\/\/[^/]+/i,''); // strip host
     var m = v.match(/\/(?:admin\/)?uploads\/.*/i);
-    if(m){ return m[0]; }
-    // else return as relative; server will resolve
-    return v.replace(/^\//,''); // relative
+    if(m) return m[0];
+    return v.replace(/^\//,''); // relative fallback
   }
   function mintAndCopy(value){
     var p = normalizePath(value);
@@ -57,8 +54,5 @@
       parent.appendChild(b);
     });
   }
-  document.addEventListener('DOMContentLoaded', function(){
-    addCopyToInputs();
-    addCopyToThumbs();
-  });
+  document.addEventListener('DOMContentLoaded', function(){ addCopyToInputs(); addCopyToThumbs(); });
 })();

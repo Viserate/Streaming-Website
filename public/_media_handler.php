@@ -1,33 +1,24 @@
 <?php
-/**
- * _media_handler.php
- * Serves opaque links /index.php?i=CODE where CODE = base64url(path|sig),
- * sig = first 16 hex chars of HMAC-SHA256(path, MEDIA_SHARE_SECRET)
- * Supports /uploads/* and /admin/uploads/*
- */
-
+// public/_media_handler.php
 if (!isset($_GET['i'])) { return; }
 
-// Load secret from common locations
+// Load MEDIA_SHARE_SECRET from common locations
 (function(){
     $candidates = [
         __DIR__ . '/../config/media_secret.php',
+        __DIR__ . '/config/media_secret.php',
         dirname($_SERVER['DOCUMENT_ROOT']) . '/config/media_secret.php',
         getenv('HOME') . '/config/media_secret.php',
     ];
-    foreach ($candidates as $f) {
-        if ($f && @is_file($f)) { require_once $f; return; }
-    }
+    foreach ($candidates as $f) { if ($f && @is_file($f)) { require_once $f; return; } }
 })();
 
 if (!defined('MEDIA_SHARE_SECRET')) {
     http_response_code(500);
-    header('Content-Type: text/plain');
-    echo "MEDIA_SHARE_SECRET missing";
-    exit;
+    header('Content-Type: text/plain'); echo "MEDIA_SHARE_SECRET missing"; exit;
 }
 
-function b64url_decode($s){
+function b64url_decode($s) {
     $s = strtr($s, '-_', '+/');
     $pad = strlen($s) % 4;
     if ($pad) $s .= str_repeat('=', 4 - $pad);
@@ -37,41 +28,26 @@ function b64url_decode($s){
 $raw = $_GET['i'];
 $decoded = b64url_decode($raw);
 if ($decoded === false || strpos($decoded, '|') === false) {
-    http_response_code(400);
-    header('Content-Type: text/plain');
-    echo "Invalid code";
-    exit;
+    http_response_code(400); header('Content-Type: text/plain'); echo "Invalid code"; exit;
 }
 list($path, $sig) = explode('|', $decoded, 2);
 
-// Validate root
+// Allow /uploads/* and /admin/uploads/*
 if (strpos($path, '/uploads/') !== 0 && strpos($path, '/admin/uploads/') !== 0) {
-    http_response_code(400);
-    header('Content-Type: text/plain');
-    echo "Invalid root";
-    exit;
+    http_response_code(400); header('Content-Type: text/plain'); echo "Invalid root"; exit;
 }
 
-// Verify signature
+// Verify HMAC
 $expect = substr(hash_hmac('sha256', $path, MEDIA_SHARE_SECRET), 0, 16);
-if (!hash_equals($expect, $sig)) {
-    http_response_code(403);
-    header('Content-Type: text/plain');
-    echo "Bad signature";
-    exit;
-}
+if (!hash_equals($expect, $sig)) { http_response_code(403); header('Content-Type: text/plain'); echo "Bad signature"; exit; }
 
-// Resolve file
 $doc = realpath($_SERVER['DOCUMENT_ROOT']);
 $file = realpath($doc . $path);
 if ($file === false || !is_file($file) || strpos($file, $doc) !== 0) {
-    http_response_code(404);
-    header('Content-Type: text/plain');
-    echo "Not found";
-    exit;
+    http_response_code(404); header('Content-Type: text/plain'); echo "Not found"; exit;
 }
 
-// Determine mime
+// MIME
 $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
 $mime = $finfo ? finfo_file($finfo, $file) : null;
 if ($finfo) finfo_close($finfo);
@@ -85,18 +61,16 @@ if (!$mime) {
 $size = filesize($file);
 $etag = '"' . md5($file . '|' . $size . '|' . filemtime($file)) . '"';
 header('Content-Type: ' . $mime);
-header('Content-Length: ' . $size);
 header('ETag: ' . $etag);
 header('Cache-Control: public, max-age=31536000, immutable');
 header('Last-Modified: ' . gmdate('D, d M Y H:i:s', filemtime($file)) . ' GMT');
 
-// Conditional GET
 $ifNoneMatch = $_SERVER['HTTP_IF_NONE_MATCH'] ?? '';
 if ($ifNoneMatch === $etag) { http_response_code(304); exit; }
 
-// Simple range support (partial)
-$range = $_SERVER['HTTP_RANGE'] ?? '';
+// Range support (important for video)
 $start = 0; $end = $size - 1;
+$range = $_SERVER['HTTP_RANGE'] ?? '';
 if (preg_match('/bytes=(\d*)-(\d*)/', $range, $m)) {
     if ($m[1] !== '') $start = max(0, (int)$m[1]);
     if ($m[2] !== '') $end = min($size - 1, (int)$m[2]);
@@ -106,6 +80,8 @@ if (preg_match('/bytes=(\d*)-(\d*)/', $range, $m)) {
         header("Content-Range: bytes $start-$end/$size");
         header("Content-Length: " . ($end - $start + 1));
     }
+} else {
+    header("Content-Length: " . $size);
 }
 
 $fp = fopen($file, 'rb');
