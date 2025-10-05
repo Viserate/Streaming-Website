@@ -1,31 +1,25 @@
 <?php
-// Admin: return JSON share URL for a given image path.
-// Usage: POST path=/media/headers/hero.jpg  -> {"ok":true,"url":"/image.php?c=CODE"}
-require_once __DIR__ . '/../../_bootstrap.php';
-require_once __DIR__ . '/../../_storage.php';
-require_once __DIR__ . '/../../_media_links.php';
-require_admin();
+// /admin/media/share_url.php?path=/uploads/xxx.png
+require_once __DIR__ . '/../../config/media_secret.php';
 
 header('Content-Type: application/json');
 
-function jexit($arr){ echo json_encode($arr); exit; }
+$path = isset($_GET['path']) ? trim($_GET['path']) : '';
+$path = preg_replace('#^/admin#i', '', $path); // strip accidental /admin
+if ($path === '') { echo json_encode(['ok'=>false,'error'=>'missing path']); exit; }
 
-$path = trim($_POST['path'] ?? $_GET['path'] ?? '');
-if ($path === '') jexit(['ok'=>false,'error'=>'missing path']);
+// Normalize relative paths to /uploads/
+if ($path[0] !== '/') { $path = '/uploads/' . ltrim($path, '/'); }
+if (strpos($path, '/uploads/') !== 0) { echo json_encode(['ok'=>false,'error'=>'invalid root']); exit; }
 
-// Accept web path or absolute on disk or bare file in MEDIA_DIR
-try {
-  $url = media_share_url($path);
-  jexit(['ok'=>true,'url'=>$url]);
-} catch (Throwable $e) {
-  // Try to map web path under docroot to abs
-  $docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
-  $abs = $path;
-  if ($abs[0] === '/') $abs = $docroot . $abs;
-  try {
-    $url = media_share_url($abs);
-    jexit(['ok'=>true,'url'=>$url]);
-  } catch (Throwable $e2) {
-    jexit(['ok'=>false,'error'=>$e2->getMessage()]);
-  }
+$full = realpath(__DIR__ . '/../../..' . $path);
+if ($full === false || !is_file($full)) {
+    echo json_encode(['ok'=>false,'error'=>'not found']); exit;
 }
+
+// Mint code: base64url(path|sig) with short HMAC to prevent tampering
+$sig = substr(hash_hmac('sha256', $path, MEDIA_SHARE_SECRET), 0, 16);
+$code = rtrim(strtr(base64_encode($path . '|' . $sig), '+/', '-_'), '=');
+$url = '/image.php?c=' . $code;
+
+echo json_encode(['ok'=>true,'url'=>$url,'path'=>$path]);
