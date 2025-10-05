@@ -12,16 +12,21 @@
       ? navigator.clipboard.writeText(t).then(function(){toast('Copied');})
       : new Promise(function(res){var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); res(); toast('Copied');});
   }
-  function absUploads(p){
-    if(!p) return null;
-    p=String(p).replace(/\\/g,'/').replace(/^https?:\/\/[^/]+/,'').replace(/^\/admin(?=\/uploads\/)/,'');
-    if(p[0] !== '/') p='/uploads/'+p;
-    return p;
+  function normalizePath(v){
+    if(!v) return null;
+    v = String(v).replace(/\\/g,'/');
+    // strip scheme+host
+    v = v.replace(/^https?:\/\/[^/]+/i,'');
+    // if it contains /admin/uploads or /uploads, keep from there
+    var m = v.match(/\/(?:admin\/)?uploads\/.*/i);
+    if(m){ return m[0]; }
+    // else return as relative; server will resolve
+    return v.replace(/^\//,''); // relative
   }
-  function mintAndCopy(path){
-    path = absUploads(path);
-    if(!/(^|\/)(uploads)\//i.test(path)){toast('Invalid path');return;}
-    fetch('/admin/media/share_url.php?path='+encodeURIComponent(path),{credentials:'same-origin'})
+  function mintAndCopy(value){
+    var p = normalizePath(value);
+    if(!p){ toast('Invalid path'); return; }
+    fetch('/admin/media/share_url.php?path='+encodeURIComponent(p),{credentials:'same-origin'})
       .then(r=>r.json()).then(j=>{
         if(j && j.ok){ copyText(location.origin + j.url); }
         else { toast(j && j.error ? j.error : 'Error'); }
@@ -31,7 +36,7 @@
     $all('input[type="text"], input[readonly], textarea').forEach(function(el){
       if(el.dataset._copy) return;
       var v = el.value || el.textContent || '';
-      if(!/uploads\//i.test(v)) return;
+      if(!/(?:^|\/)(?:admin\/)?uploads\//i.test(v)) return;
       var btn = document.createElement('button');
       btn.type='button'; btn.textContent='Copy URL'; btn.className='btn btn-secondary ms-2 btn-sm';
       btn.addEventListener('click', function(e){e.preventDefault(); e.stopPropagation(); mintAndCopy(v); });
@@ -41,7 +46,7 @@
   function addCopyToThumbs(){
     $all('img').forEach(function(img){
       var src = img.getAttribute('src')||'';
-      if(!/uploads\//i.test(src)) return;
+      if(!/(?:^|\/)(?:admin\/)?uploads\//i.test(src)) return;
       var parent = img.parentElement || img;
       var pos = getComputedStyle(parent).position; if(pos==='static') parent.style.position='relative';
       if(parent.querySelector('.copy-url-overlay')) return;
