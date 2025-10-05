@@ -7,11 +7,10 @@
     document.body.appendChild(d); requestAnimationFrame(function(){d.style.opacity='1';});
     setTimeout(function(){d.style.opacity='0'; setTimeout(function(){d.remove();},200);},1200);
   }
-  function copy(t){
-    return (navigator.clipboard&&navigator.clipboard.writeText?t=navigator.clipboard.writeText(t):new Promise(function(res){
-      var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
-      try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); res();
-    })).then(function(){toast('Copied');});
+  function copyText(t){
+    return (navigator.clipboard&&navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(t).then(function(){toast('Copied');})
+      : new Promise(function(res){var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); res(); toast('Copied');});
   }
   function absUploads(p){
     if(!p) return null;
@@ -24,11 +23,10 @@
     if(!/\/uploads\//.test(path)){toast('Invalid path');return;}
     fetch('/admin/media/share_url.php?path='+encodeURIComponent(path),{credentials:'same-origin'})
       .then(r=>r.json()).then(j=>{
-        if(j && j.ok){ copy(location.origin + j.url); }
-        else { toast('Error'); }
+        if(j && j.ok){ copyText(location.origin + j.url); }
+        else { toast(j && j.error ? j.error : 'Error'); }
       }).catch(()=>toast('Error'));
   }
-
   function addCopyToInputs(){
     $all('input[type="text"], input[readonly], textarea').forEach(function(el){
       if(el.dataset._copy) return;
