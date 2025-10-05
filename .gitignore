@@ -1,0 +1,6 @@
+
+# Prevent cPanel deploy blocks due to untracked files
+.deploy_*.log
+*.deploy.log
+*.bak
+*.tmp

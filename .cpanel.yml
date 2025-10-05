@@ -1,5 +1,5 @@
 ---
 deployment:
   tasks:
-
-    - bash -x tools/deploy_frontend_nav_v4.sh
+    - echo "Running deploy_frontend_nav_v5 …"
+    - bash -x tools/deploy_frontend_nav_v5.sh
