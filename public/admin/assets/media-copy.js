@@ -20,7 +20,7 @@
   }
   function mintAndCopy(path){
     path = absUploads(path);
-    if(!/\/uploads\//.test(path)){toast('Invalid path');return;}
+    if(!/(^|\/)(uploads)\//i.test(path)){toast('Invalid path');return;}
     fetch('/admin/media/share_url.php?path='+encodeURIComponent(path),{credentials:'same-origin'})
       .then(r=>r.json()).then(j=>{
         if(j && j.ok){ copyText(location.origin + j.url); }
