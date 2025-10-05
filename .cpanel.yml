@@ -1,4 +1,5 @@
 ---
 deployment:
   tasks:
-    - /bin/bash tools/deploy.sh
+    - export DOCROOT="$HOME/public_html"
+    - /bin/bash ./tools/deploy_media_handler.sh
