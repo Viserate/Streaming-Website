@@ -1,5 +1,5 @@
 ---
 deployment:
   tasks:
-    - export DOCROOT="$HOME/public_html"
-    - /bin/bash ./tools/deploy.sh
+    - echo "Running deploy_front_nav_auto.sh …"
+    - bash -x tools/deploy_front_nav_auto.sh
