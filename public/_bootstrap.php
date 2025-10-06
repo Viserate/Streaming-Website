@@ -1,35 +1,18 @@
 <?php
-// public/_bootstrap.php (paths hotfix)
-// Looks for pdo.php + auth.php in multiple locations so we don't 500 if config
-// ended up in public/config or project-root/config instead of ~/SiteConfigs.
-ini_set('display_errors', 0);
-error_reporting(E_ALL);
+declare(strict_types=1);
+session_start();
+if (empty($_SESSION['admin_id'])) { /* gate can be customized */ }
 
-$docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');   // e.g., /home/user/public_html
-$home    = dirname($docroot);                             // e.g., /home/user
-
-$candidates = [
-  $home . '/SiteConfigs',        // preferred
-  __DIR__ . '/config',           // public/config (if someone copied it here)
-  __DIR__ . '/../config',        // project root /config
-  $docroot . '/config',          // /public_html/config
-  $docroot . '/../config',       // ~/config
-];
-
-$found = null;
-foreach ($candidates as $dir) {
-  if (is_readable($dir . '/pdo.php') && is_readable($dir . '/auth.php')) {
-    $found = $dir;
-    break;
-  }
+function db(): PDO {
+  static $pdo=null; if($pdo) return $pdo;
+  $cands=[__DIR__.'/../config/db.php',__DIR__.'/../config/database.php',__DIR__.'/../config/config.php', $_SERVER['DOCUMENT_ROOT'].'/../SiteConfigs/db.php', $_SERVER['DOCUMENT_ROOT'].'/../SiteConfigs/config.php'];
+  foreach($cands as $f){ if(is_file($f)){ require_once $f;
+    if(isset($DB_HOST)){ $dsn="mysql:host=$DB_HOST;dbname=$DB_NAME;charset=utf8mb4"; $pdo=new PDO($dsn,$DB_USER,$DB_PASS,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]); return $pdo; }
+    if(isset($config['db'])){ $d=$config['db']; $dsn="mysql:host={$d['host']};dbname={$d['name']};charset=utf8mb4"; $pdo=new PDO($dsn,$d['user'],$d['pass'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]); return $pdo; }
+  }}
+  throw new RuntimeException('DB config not found');
 }
-
-if (!$found) {
-  header('HTTP/1.1 500 Internal Server Error');
-  echo "Bootstrap error: could not locate pdo.php/auth.php. Tried: " . implode(' | ', $candidates);
-  exit;
-}
-
-define('STREAMSITE_CONFIG_DIR', $found);
-require_once STREAMSITE_CONFIG_DIR . '/pdo.php';
-require_once STREAMSITE_CONFIG_DIR . '/auth.php';
+function setting(string $k, $def=null){ try{ $st=db()->prepare('SELECT svalue FROM settings WHERE skey=?'); $st->execute([$k]); $v=$st->fetchColumn(); return $v!==false?$v:$def; }catch(Throwable $e){ return $def; } }
+function base_url(): string { $s=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http'; $h=$_SERVER['HTTP_HOST']??'localhost'; return $s.'://'.$h; }
+function uploads_dir_img(): string { return rtrim(setting('uploads.images','/uploads/library'),'/'); }
+function uploads_dir_vid(): string { return rtrim(setting('uploads.videos','/uploads/videos'),'/'); }
