@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - echo "Deploying Admin Completion v7 …"
+    - bash -x tools/deploy_admin_complete_v7.sh

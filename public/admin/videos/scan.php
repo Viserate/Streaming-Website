@@ -1,47 +1,21 @@
 <?php
-require_once __DIR__ . '/../_admin_boot.php';
-admin_header('Scan Library');
+require __DIR__.'/_common.php';
+$doc=rtrim($_SERVER['DOCUMENT_ROOT'],'/'); $dir=$doc.videos_dir(); @mkdir($dir,0775,true);
+$pdo->exec("CREATE TABLE IF NOT EXISTS videos (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, title VARCHAR(255) NOT NULL, slug VARCHAR(255) UNIQUE, src ENUM('upload','embed') NOT NULL DEFAULT 'upload', path VARCHAR(512) NULL, embed_url TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-$dir = $_SERVER['DOCUMENT_ROOT'] . '/admin/uploads/video';
-if (!is_dir($dir)) @mkdir($dir, 0775, true);
-
-$pdo = db();
-$pdo->exec("CREATE TABLE IF NOT EXISTS videos(
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  path VARCHAR(255) NOT NULL,
-  duration INT NULL,
-  size BIGINT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);");
-
-$imported = 0;
-if (isset($_POST['scan'])) {
-  $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
-  foreach ($rii as $f) {
-    if ($f->isDir()) continue;
-    $ext = strtolower(pathinfo($f->getFilename(), PATHINFO_EXTENSION));
-    if (!in_array($ext, ['mp4','mov','mkv','webm'])) continue;
-    $rel = '/admin/uploads/video/' . ltrim(str_replace($dir,'',$f->getPathname()),'/');
-    $title = pathinfo($f->getFilename(), PATHINFO_FILENAME);
-    $size = $f->getSize();
-    $st = $pdo->prepare("SELECT COUNT(*) FROM videos WHERE path=?");
-    $st->execute([$rel]);
-    if (!$st->fetchColumn()) {
-      $ins = $pdo->prepare("INSERT INTO videos(title,path,size) VALUES(?,?,?)");
-      $ins->execute([$title,$rel,$size]);
-      $imported++;
-    }
+$count=0;
+$rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+foreach($rii as $f){
+  if($f->isDir()) continue;
+  $abs=$f->getPathname(); $rel = videos_dir().substr($abs, strlen($dir));
+  $title = basename($abs);
+  $st=$pdo->prepare("SELECT id FROM videos WHERE src='upload' AND path=? LIMIT 1"); $st->execute([$rel]);
+  if(!$st->fetchColumn()){
+    $ins=$pdo->prepare("INSERT INTO videos(title,src,path) VALUES(?, 'upload', ?)"); $ins->execute([$title,$rel]); $count++;
   }
 }
-?>
-<h3 class="mb-3">Scan Library</h3>
-<form method="post" class="mb-3">
-  <button class="btn btn-primary" name="scan" value="1">Scan now</button>
-</form>
-<?php if ($imported): ?>
-<div class="alert alert-success">Imported <?=$imported?> new videos.</div>
-<?php endif; ?>
-
-<p>Place large files via SFTP under <code>/admin/uploads/video/</code> then click <strong>Scan now</strong> to import metadata.</p>
-<?php admin_footer(); ?>
+?><!doctype html><html><head><meta charset="utf-8"><title>Scan</title></head><body>
+<h1>Scan Completed</h1>
+<p>Imported <?=$count?> file(s) from <code><?=htmlspecialchars(videos_dir())?></code>.</p>
+<p><a href="/admin/videos/all.php">Back to all videos</a></p>
+</body></html>

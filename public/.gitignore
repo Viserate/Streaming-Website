@@ -1,0 +1,6 @@
+.deploy_*.log
+*.deploy.log
+*.bak
+*.tmp
+node_modules
+dist

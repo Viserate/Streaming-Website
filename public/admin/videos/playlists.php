@@ -1,45 +1,22 @@
 <?php
-require_once __DIR__ . '/../_admin_boot.php';
-admin_header('Playlists');
-$pdo = db();
-$pdo->exec("CREATE TABLE IF NOT EXISTS playlists(id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150) UNIQUE NOT NULL, description TEXT NULL)");
-$pdo->exec("CREATE TABLE IF NOT EXISTS playlist_items(playlist_id INT NOT NULL, video_id INT NOT NULL, position INT NOT NULL DEFAULT 0, PRIMARY KEY(playlist_id,video_id))");
-
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-  $name = trim($_POST['name'] ?? '');
-  if ($name) {
-    $desc = trim($_POST['description'] ?? '');
-    $st = $pdo->prepare("INSERT IGNORE INTO playlists(name,description) VALUES(?,?)");
-    $st->execute([$name,$desc]);
+require __DIR__.'/_common.php';
+$pdo->exec("CREATE TABLE IF NOT EXISTS video_playlists (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(128) NOT NULL, slug VARCHAR(128) UNIQUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+if($_SERVER['REQUEST_METHOD']==='POST'){
+  if(isset($_POST['create'])){
+    $name=trim($_POST['name']??''); if($name){ $pdo->prepare("INSERT INTO video_playlists(name,slug) VALUES(?,?)")->execute([$name, strtolower(preg_replace('/[^a-z0-9]+/i','-',$name))]); }
+  } elseif(isset($_POST['delete'])){
+    $id=(int)$_POST['id']; $pdo->prepare("DELETE FROM video_playlists WHERE id=?")->execute([$id]);
   }
+  header('Location: /admin/videos/playlists.php'); exit;
 }
-if (isset($_GET['del'])) {
-  $st = $pdo->prepare("DELETE FROM playlists WHERE id=?");
-  $st->execute([(int)$_GET['del']]);
-}
-?>
-<h3 class="mb-3">Playlists</h3>
-
-<form method="post" class="row g-3 mb-4">
-  <div class="col-md-4">
-    <input class="form-control" name="name" placeholder="Playlist name">
-  </div>
-  <div class="col-md-6">
-    <input class="form-control" name="description" placeholder="Short description (optional)">
-  </div>
-  <div class="col-md-2">
-    <button class="btn btn-primary w-100">Create</button>
-  </div>
-</form>
-
-<table class="table table-striped">
-  <thead><tr><th>ID</th><th>Name</th><th>Description</th><th></th></tr></thead>
-  <tbody>
-    <?php foreach($pdo->query("SELECT id,name,description FROM playlists ORDER BY id DESC") as $p): ?>
-      <tr><td><?=h($p['id'])?></td><td><?=h($p['name'])?></td><td><?=h($p['description'])?></td>
-      <td><a class="btn btn-sm btn-outline-danger" href="?del=<?=$p['id']?>" onclick="return confirm('Delete?')">Delete</a></td></tr>
-    <?php endforeach; ?>
-  </tbody>
+$rows=$pdo->query("SELECT * FROM video_playlists ORDER BY created_at DESC")->fetchAll();
+?><!doctype html><html><head><meta charset="utf-8"><title>Playlists</title></head><body>
+<h1>Playlists</h1>
+<form method="post"><input type="text" name="name" placeholder="New playlist" required> <button name="create">Create</button></form>
+<table border="1" cellpadding="6" cellspacing="0"><tr><th>ID</th><th>Name</th><th>Slug</th><th></th></tr>
+<?php foreach($rows as $r): ?>
+<tr><td><?=$r['id']?></td><td><?=htmlspecialchars($r['name'])?></td><td><?=$r['slug']?></td>
+<td><form method="post" style="display:inline"><input type="hidden" name="id" value="<?=$r['id']?>"><button name="delete" onclick="return confirm('Delete?')">Delete</button></form></td></tr>
+<?php endforeach; ?>
 </table>
-
-<?php admin_footer(); ?>
+<p><a href="/admin/videos/all.php">Back</a></p></body></html>
